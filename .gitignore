@@ -1,0 +1,8 @@
+# Byte-compiled
+*.py[cod]
+# Environments
+.env
+# Logs
+*.log
+#Pycharm configuration
+.idea/*

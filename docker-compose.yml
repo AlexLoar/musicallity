@@ -1,0 +1,77 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:10.1-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+      - ./postgres/schema_djangoapp.sql:/docker-entrypoint-initdb.d/1-schema.sql
+      - logs:/var/logs/
+    networks:
+      - db_network
+
+  djangoapp:
+    build:
+      context: ./djangoapp
+    env_file:
+      - .env
+    volumes:
+      - ./djangoapp/src:/code
+      - staticfiles:/code/staticfiles
+      - media:/code/media
+      - logs:/var/logs/
+    ports:
+      - 8000:8000
+    depends_on:
+      - db
+      - redis
+    networks:
+      - db_network
+
+  redis:
+    image: redis:5-alpine
+    networks:
+      - db_network
+
+  celery:
+    build:
+      context: ./djangoapp
+    command: pipenv run celery -A music_backend worker -l DEBUG
+    volumes:
+      - ./djangoapp/src:/code
+      - logs:/var/logs/
+    env_file:
+      - .env
+    depends_on:
+      - djangoapp
+      - redis
+      - db
+    networks:
+      - db_network
+
+  flower:
+    build:
+      context: ./djangoapp
+    command: pipenv run flower -A music_backend --port=5555 --broker=redis://redis:6379/0
+    volumes:
+      - ./djangoapp/src:/code
+    ports:
+      - 5555:5555
+    env_file:
+      - .env
+    depends_on:
+      - djangoapp
+      - redis
+      - celery
+    networks:
+      - db_network
+
+volumes:
+  postgres_data:
+  staticfiles:
+  media:
+  logs:
+
+networks:
+  db_network:
+    driver: bridge
